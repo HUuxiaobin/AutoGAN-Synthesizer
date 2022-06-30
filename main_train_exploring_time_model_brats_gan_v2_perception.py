@@ -90,8 +90,6 @@ def perception_loss(logits,target,vgg,aggregate_style_loss,aggregate_content_los
     return loss
 
 
-
-
 def main():
     if not torch.cuda.is_available():
         logging.info('no gpu device available')
@@ -118,9 +116,9 @@ def main():
     vgg = Vgg16().type(dtype)
 
     train_dataset = MRIDataset(
-            flair_image_files='multi_modality_flairt1t1ce_t2/paired_brats/train_flair.txt',
-            t2_image_files='multi_modality_flairt1t1ce_t2/paired_brats/train_t2.txt',
-            root_dir = 'multi_modality_flairt1t1ce_t2/paired_brats',
+            flair_image_files='paired_brats/train_flair.txt',
+            t2_image_files='paired_brats/train_t2.txt',
+            root_dir = 'paired_brats',
             crop = False,
             crop_size = IMAGE_SIZE,
             rotation=True,
@@ -133,11 +131,11 @@ def main():
     train_queue = DataLoader(train_dataset, batch_size = BATCH_SIZE, shuffle=True)
 
     test_dataset = MRIDataset(
-              flair_image_files='multi_modality_flairt1t1ce_t2/paired_brats/test_flair.txt',
-                t2_image_files='multi_modality_flairt1t1ce_t2/paired_brats/test_t2.txt',
+              flair_image_files='paired_brats/test_flair.txt',
+                t2_image_files='paired_brats/test_t2.txt',
                 crop=False,
                 crop_size=IMAGE_SIZE,
-                root_dir = 'multi_modality_flairt1t1ce_t2/paired_brats',
+                root_dir = 'paired_brats',
                 transform = transforms.Compose([
                             transforms.ToTensor(),
     ])
