@@ -1,5 +1,3 @@
-# USAGE
-# python facial_landmarks.py --shape-predictor shape_predictor_68_face_landmarks.dat --image images/example_01.jpg 
 import numpy as np
 import argparse
 import imutils
@@ -7,12 +5,6 @@ import dlib
 import cv2
 import os
 ##write text
-
-
-
-
-
-
 
 def write_text(five_points,name):
 	with open(name, "w") as f:
