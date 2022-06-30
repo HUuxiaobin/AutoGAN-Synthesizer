@@ -137,20 +137,25 @@ def train(epoch, train_queue, valid_queue, model, architect, optimizer, lr):
 
     target=Variable(images['t2_image']).cuda()
     input=Variable(images['flair_image']).cuda()
-    k_space=Variable(images['k_space']).cuda()
+    flair_k_space=Variable(images['flair_k_space']).cuda()
+    t1_k_space=Variable(images['t1_k_space']).cuda()
+    t1ce_k_space=Variable(images['t1ce_k_space']).cuda()
     t1_image=Variable(images['t1_image']).cuda()
     t1ce_image=Variable(images['t1ce_image']).cuda()
-    inputs=input
+    inputs=torch.cat([input,t1_image,t1ce_image,flair_k_space,t1_k_space,t1ce_k_space],1)
 
     if (epoch+1) > 10:  ##default10
       model.eval()
       images = next(iter(valid_queue))
       target_search=Variable(images['t2_image']).cuda()
       input_search=Variable(images['flair_image']).cuda()
-      #k_space_search=Variable(images['k_space']).cuda()
+      flair_k_space=Variable(images['flair_k_space']).cuda()
+      t1_k_space=Variable(images['t1_k_space']).cuda()
+      t1ce_k_space=Variable(images['t1ce_k_space']).cuda()
       t1_image_search=Variable(images['t1_image']).cuda()
       t1ce_image_search=Variable(images['t1ce_image']).cuda()
-      inputs_search=input_search
+    
+      inputs_search=torch.cat([input_search,t1_image_search,t1ce_image_search,flair_k_space_search,t1_k_space_search,t1ce_k_space_search],1)
       architect.step(inputs, target, inputs_search, target_search, lr, optimizer, unrolled=args.unrolled)
     
     model.train()
@@ -173,8 +178,12 @@ def infer(valid_queue, model):
       k_space=Variable(images['k_space']).cuda()
       t1_image=Variable(images['t1_image']).cuda()
       t1ce_image=Variable(images['t1ce_image']).cuda()
+      flair_k_space=Variable(images['flair_k_space']).cuda()
+      t1_k_space=Variable(images['t1_k_space']).cuda()
+      t1ce_k_space=Variable(images['t1ce_k_space']).cuda()
       input=Variable(images['flair_image']).cuda()
-      inputs=torch.cat(input,t1_image,t1ce_image,k_space)
+      
+      inputs=torch.cat([input,t1_image,t1ce_image,flair_k_space,t1_k_space,t1ce_k_space],1)
       logits = model(inputs)
 
       l = MSELoss(logits, target)
