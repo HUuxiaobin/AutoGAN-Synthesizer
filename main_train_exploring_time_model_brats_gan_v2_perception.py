@@ -13,14 +13,14 @@ import utils
 from utils import AverageMeter
 import pytorch_ssim
 from search_space import HighResolutionNet
-from datasets_gpro import GoProDataset
+from datasets_gpro import MRIDataset
 from torch.utils.data import Dataset, DataLoader
 from torch.autograd import Variable
 from vgg import Vgg16
 from discriminator import Discriminator2,define_D
 import torch.optim as optim
 
-parser = argparse.ArgumentParser("deraining")
+parser = argparse.ArgumentParser("AutoGAN")
 parser.add_argument('--data', type=str, default='./datasets/', help='location of the data')
 parser.add_argument('--epochs', type=int, default=1000, help='num of training epochs')
 parser.add_argument('--steps', type=int, default=54, help='steps of each epoch')
@@ -68,31 +68,24 @@ def perception_loss(logits,target,vgg,aggregate_style_loss,aggregate_content_los
     y_hat_features = vgg(logits)
     style_features = vgg(target)
     style_gram = [utils.gram(fmap) for fmap in style_features]
-            # calculate style loss
+    # calculate style loss
     y_hat_gram = [utils.gram(fmap) for fmap in y_hat_features]
-#    style_gram = [utils.gram(fmap) for fmap in style_features]
     style_loss = 0.0
     for j in range(4):
-        #style_loss += loss_mse(y_hat_gram[j], style_gram[j][:img_batch_read])
         style_loss += MSELoss(y_hat_gram[j], style_gram[j])
     style_loss = STYLE_WEIGHT*style_loss
     aggregate_style_loss += style_loss
 
-            # calculate content loss (h_relu_2_2)
-#    recon = y_c_features[1]      
-#    recon_hat = y_hat_features[1]
     content_loss = CONTENT_WEIGHT*MSELoss(logits, target)
     aggregate_content_loss += content_loss
 
-            # calculate total variation regularization (anisotropic version)
-            # https://www.wikiwand.com/en/Total_variation_denoising
+    # calculate total variation regularization (anisotropic version)
+    # https://www.wikiwand.com/en/Total_variation_denoising
     diff_i = torch.sum(torch.abs(logits[:, :, :, 1:] - logits[:, :, :, :-1]))
     diff_j = torch.sum(torch.abs(logits[:, :, 1:, :] - logits[:, :, :-1, :]))
     tv_loss = TV_WEIGHT*(diff_i + diff_j)
     aggregate_tv_loss += tv_loss
 
-            # total loss
-    #print('style_loss',style_loss,'content_loss',content_loss,'tv_loss',tv_loss)
     loss = style_loss + content_loss + tv_loss
     return loss
 
@@ -115,20 +108,19 @@ def main():
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
     model.cuda()
 #------define netD
-    #netD = Discriminator(args)
-    #netD = Discriminator2(args)
+
     netD = define_D(3, 64, 3, 'instance', True, 'normal', [0])
     netD.cuda()
-###--------
+
     optimizer = torch.optim.Adam(model.parameters(), args.learning_rate)
 #    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
     dtype = torch.cuda.FloatTensor
     vgg = Vgg16().type(dtype)
 
-    train_dataset = GoProDataset(
-            blur_image_files = '/home/haicu/ruolin.shen/projects/clearer/multi_modality_flairt1t1ce_t2/paired_brats/train_flair.txt',
-            sharp_image_files = '/home/haicu/ruolin.shen/projects/clearer/multi_modality_flairt1t1ce_t2/paired_brats/train_t2.txt',
-            root_dir = '/home/haicu/ruolin.shen/projects/clearer/multi_modality_flairt1t1ce_t2/paired_brats',
+    train_dataset = MRIDataset(
+            flair_image_files='multi_modality_flairt1t1ce_t2/paired_brats/train_flair.txt',
+            t2_image_files='multi_modality_flairt1t1ce_t2/paired_brats/train_t2.txt',
+            root_dir = 'multi_modality_flairt1t1ce_t2/paired_brats',
             crop = False,
             crop_size = IMAGE_SIZE,
             rotation=True,
@@ -136,20 +128,18 @@ def main():
             mirror=True,
             transform = transforms.Compose([
                         transforms.ToTensor(),
-#                        transforms.Normalize((0.5,0.5,0.5), (1,1,1))
     ])
 )
     train_queue = DataLoader(train_dataset, batch_size = BATCH_SIZE, shuffle=True)
 
-    test_dataset = GoProDataset(
-              blur_image_files = '/home/haicu/ruolin.shen/projects/clearer/multi_modality_flairt1t1ce_t2/paired_brats/test_flair.txt',
-                sharp_image_files = '/home/haicu/ruolin.shen/projects/clearer/multi_modality_flairt1t1ce_t2/paired_brats/test_t2.txt',
+    test_dataset = MRIDataset(
+              flair_image_files='multi_modality_flairt1t1ce_t2/paired_brats/test_flair.txt',
+                t2_image_files='multi_modality_flairt1t1ce_t2/paired_brats/test_t2.txt',
                 crop=False,
                 crop_size=IMAGE_SIZE,
-                root_dir = '/home/haicu/ruolin.shen/projects/clearer/multi_modality_flairt1t1ce_t2/paired_brats',
+                root_dir = 'multi_modality_flairt1t1ce_t2/paired_brats',
                 transform = transforms.Compose([
                             transforms.ToTensor(),
-#                            transforms.Normalize((0.5,0.5,0.5), (1,1,1))
     ])
 )
     valid_queue = DataLoader(test_dataset, batch_size = 1, shuffle=False)
@@ -223,14 +213,13 @@ def train(train_queue, model,netD, vgg,optimizer,d_losses,total_losses,content_l
     netD.train()
 
     for step, (images) in enumerate(train_queue):
-#        print('--steps:%d--' % step)
 
         model.train()
         for p in netD.parameters():
             p.requires_grad = True
 
-        target=Variable(images['sharp_image']).cuda()
-        input=Variable(images['blur_image']).cuda()
+        target=Variable(images['t2_image']).cuda()
+        input=Variable(images['flair_image']).cuda()
         k_space=Variable(images['k_space']).cuda()
         t1_image=Variable(images['t1_image']).cuda()
         t1ce_image=Variable(images['t1ce_image']).cuda()
@@ -238,15 +227,13 @@ def train(train_queue, model,netD, vgg,optimizer,d_losses,total_losses,content_l
         #print('input shape',inputs.shape)
 #        optimizer.zero_grad()
         logits = model(inputs)
-        #print('real loss',netD(target).shape,'squeeze',torch.unsqueeze(netD(logits.detach()),1).shape)
-        #print('real lable',real_label.shape,real_label)
+
         real_D = netD(target)
         real_label = torch.ones(real_D.shape).cuda()
         fake_D = netD(logits.detach())
         fake_label = torch.zeros(fake_D.shape).cuda()
         
         real_loss = mse_loss(real_D, real_label)
-        #print('********real loss',real_loss)
         fake_loss = mse_loss(fake_D, fake_label)
         d_loss = real_loss + fake_loss
         #print('loss',d_loss)
@@ -258,10 +245,7 @@ def train(train_queue, model,netD, vgg,optimizer,d_losses,total_losses,content_l
             p.requires_grad = False
 
         images = next(iter(train_queue))
-#########content loss
-#        content_loss = mse_loss(logits, target)
 
-#--------perception loss
         content_loss=perception_loss(logits, target,vgg,aggregate_style_loss,aggregate_content_loss,aggregate_tv_loss)
 ##------------------------------
         adv_loss = bce_loss(netD(logits), real_label)
@@ -291,13 +275,12 @@ def infer(valid_queue, model):
     model.eval()
     with torch.no_grad():
         for _, (images) in enumerate(valid_queue):
-            target=Variable(images['sharp_image']).cuda()
+            target=Variable(images['t2_image']).cuda()
             k_space=Variable(images['k_space']).cuda()
             t1_image=Variable(images['t1_image']).cuda()
             t1ce_image=Variable(images['t1ce_image']).cuda()
-      #input=Variable(images['blur_image'] - 0.5).cuda()
+            input=Variable(images['flair_image']).cuda()
 
-            input=Variable(images['blur_image']).cuda()
             inputs=input
             logits = model(inputs)
             l = MSELoss(logits, target)

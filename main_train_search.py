@@ -14,12 +14,11 @@ import pytorch_ssim
 from search_space import SearchSpace
 from torchvision import transforms, datasets
 from architect import Architect
-#from datasets import Rain800
-from datasets_gpro import GoProDataset
+from datasets_gpro import MRIDataset
 import pytorch_ssim
 from torch.utils.data import Dataset, DataLoader
 from torch.autograd import Variable
-parser = argparse.ArgumentParser("deraining")
+parser = argparse.ArgumentParser("AutoGAN")
 parser.add_argument('--data', type=str, default='./datasets/', help='location of the data')
 parser.add_argument('--epochs', type=int, default=200, help='num of training epochs')
 parser.add_argument('--steps', type=int, default=50, help='steps of each epoch')
@@ -51,14 +50,6 @@ fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
 
 
-#def get_normalize():
-#    transform = transforms.Compose([
-#        transforms.ToTensor(),
-#        transforms.Normalize((0.5,0.5,0.5), (1,1,1))
-#    ])
-#    return transform
-
-
 def main():
     print(torch.cuda.is_available())
     if not torch.cuda.is_available():
@@ -78,10 +69,10 @@ def main():
 
     architect = Architect(model, args)
 
-    train_dataset = GoProDataset(
-            blur_image_files = '/home/haicu/ruolin.shen/projects/clearer/multi_modality_flairt1t1ce_t2/paired_brats/train_flair.txt',
-            sharp_image_files = '/home/haicu/ruolin.shen/projects/clearer/multi_modality_flairt1t1ce_t2/paired_brats/train_t2.txt',
-            root_dir = '/home/haicu/ruolin.shen/projects/clearer/multi_modality_flairt1t1ce_t2/paired_brats',
+    train_dataset = MRIDataset(
+            flair_image_files='multi_modality_flairt1t1ce_t2/paired_brats/train_flair.txt',
+            t2_image_files='multi_modality_flairt1t1ce_t2/paired_brats/train_t2.txt',
+            root_dir = 'multi_modality_flairt1t1ce_t2/paired_brats',
             crop = False,
             crop_size = IMAGE_SIZE,
             rotation=True,
@@ -89,20 +80,18 @@ def main():
             mirror=True,
             transform = transforms.Compose([
                         transforms.ToTensor(),
-#                        transforms.Normalize((0.5,0.5,0.5), (1,1,1))
     ])
 )
     train_queue = DataLoader(train_dataset, batch_size = BATCH_SIZE, shuffle=True)
 
-    test_dataset = GoProDataset(
-              blur_image_files = '/home/haicu/ruolin.shen/projects/clearer/multi_modality_flairt1t1ce_t2/paired_brats/test_flair.txt',
-                sharp_image_files = '/home/haicu/ruolin.shen/projects/clearer/multi_modality_flairt1t1ce_t2/paired_brats/test_t2.txt',
+    test_dataset = MRIDataset(
+              flair_image_files='multi_modality_flairt1t1ce_t2/paired_brats/test_flair.txt',
+                t2_image_files='multi_modality_flairt1t1ce_t2/paired_brats/test_t2.txt',
                 crop=False,
                 crop_size=IMAGE_SIZE,
-                root_dir = '/home/haicu/ruolin.shen/projects/clearer/multi_modality_flairt1t1ce_t2/paired_brats',
+                root_dir = 'multi_modality_flairt1t1ce_t2/paired_brats',
                 transform = transforms.Compose([
                             transforms.ToTensor(),
-#                            transforms.Normalize((0.5,0.5,0.5), (1,1,1))
     ])
 )
     valid_queue = DataLoader(test_dataset, batch_size = 1, shuffle=False)
@@ -145,24 +134,19 @@ def main():
 def train(epoch, train_queue, valid_queue, model, architect, optimizer, lr):
   for step, (images) in enumerate(train_queue):
     print('--steps:%d--' % step)
-    
-#    target=Variable(images['sharp_image'] - 0.5).cuda()
-#    input=Variable(images['blur_image'] - 0.5).cuda()
 
-    target=Variable(images['sharp_image']).cuda()
-    input=Variable(images['blur_image']).cuda()
+    target=Variable(images['t2_image']).cuda()
+    input=Variable(images['flair_image']).cuda()
     k_space=Variable(images['k_space']).cuda()
     t1_image=Variable(images['t1_image']).cuda()
     t1ce_image=Variable(images['t1ce_image']).cuda()
     inputs=input
-#    print('inputs shape',inputs.shape)
-    #print('input shape and k_space shape and new_input',input.shape,k_space.shape,inputs.shape)
-    #print('this is k_space',k_space)
+
     if (epoch+1) > 10:  ##default10
       model.eval()
       images = next(iter(valid_queue))
-      target_search=Variable(images['sharp_image']).cuda()
-      input_search=Variable(images['blur_image']).cuda()
+      target_search=Variable(images['t2_image']).cuda()
+      input_search=Variable(images['flair_image']).cuda()
       #k_space_search=Variable(images['k_space']).cuda()
       t1_image_search=Variable(images['t1_image']).cuda()
       t1ce_image_search=Variable(images['t1ce_image']).cuda()
@@ -185,13 +169,12 @@ def infer(valid_queue, model):
 
   with torch.no_grad():
     for _, (images) in enumerate(valid_queue):
-      target=Variable(images['sharp_image']).cuda()
+      target=Variable(images['t2_image']).cuda()
       k_space=Variable(images['k_space']).cuda()
       t1_image=Variable(images['t1_image']).cuda()
       t1ce_image=Variable(images['t1ce_image']).cuda()
-      #input=Variable(images['blur_image'] - 0.5).cuda()
-      input=Variable(images['blur_image']).cuda()
-      inputs=input
+      input=Variable(images['flair_image']).cuda()
+      inputs=torch.cat(input,t1_image,t1ce_image,k_space)
       logits = model(inputs)
 
       l = MSELoss(logits, target)
