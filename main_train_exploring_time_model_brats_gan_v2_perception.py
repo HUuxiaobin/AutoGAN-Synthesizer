@@ -220,10 +220,12 @@ def train(train_queue, model,netD, vgg,optimizer,d_losses,total_losses,content_l
 
         target=Variable(images['t2_image']).cuda()
         input=Variable(images['flair_image']).cuda()
-        k_space=Variable(images['k_space']).cuda()
         t1_image=Variable(images['t1_image']).cuda()
         t1ce_image=Variable(images['t1ce_image']).cuda()
-        inputs=input
+        flair_k_space=Variable(images['flair_k_space']).cuda()
+        t1_k_space=Variable(images['t1_k_space']).cuda()
+        t1ce_k_space=Variable(images['t1ce_k_space']).cuda()
+        inputs=torch.cat([input,t1_image,t1ce_image,flair_k_space,t1_k_space,t1ce_k_space],1)
         #print('input shape',inputs.shape)
 #        optimizer.zero_grad()
         logits = model(inputs)
@@ -276,12 +278,14 @@ def infer(valid_queue, model):
     with torch.no_grad():
         for _, (images) in enumerate(valid_queue):
             target=Variable(images['t2_image']).cuda()
-            k_space=Variable(images['k_space']).cuda()
+            flair_k_space=Variable(images['flair_k_space']).cuda()
+            t1_k_space=Variable(images['t1_k_space']).cuda()
+            t1ce_k_space=Variable(images['t1ce_k_space']).cuda()
             t1_image=Variable(images['t1_image']).cuda()
             t1ce_image=Variable(images['t1ce_image']).cuda()
             input=Variable(images['flair_image']).cuda()
 
-            inputs=input
+            inputs=torch.cat([input,t1_image,t1ce_image,flair_k_space,t1_k_space,t1ce_k_space],1)
             logits = model(inputs)
             l = MSELoss(logits, target)
             s = pytorch_ssim.ssim(torch.clamp(logits,0,1), target)
