@@ -1,7 +1,8 @@
 # AutoGAN-Synthesizer
 
 This is the official code for the paper **AutoGAN-Synthesizer: Neural Architecture Searchfor Cross-Modality MRI Synthesis**, which is accepted by MICCAI 2022.
-The public code is for experiment FLAIR+T1+T1ce -> T2, user could easily modify the input to custom modality combinations.
+
+The public code is for experiment FLAIR+T1+T1ce -> T2, user could easily modify the input for custom modality combinations.
 
 ## Usage
 
